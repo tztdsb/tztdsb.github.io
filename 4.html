@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>自动提交空输入框（1×1 · 左移 1/6 屏宽）</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 20px;
+  }
+
+  /* 输入框尺寸 1px × 1px，向左移动屏幕宽度的 1/6 */
+  input {
+    width: 1px;
+    height: 1px;
+    line-height: 0;
+    padding: 0;
+    border: none;
+    margin: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    display: block;
+    font-size: 0;
+    transform: translateX(-16.67vw);  /* 左移屏幕宽度的 1/6 */
+  }
+</style>
+</head>
+<body>
+
+<form id="f">
+  <input type="text" id="i" required>
+</form>
+
+<script>
+  var form  = document.getElementById('f');
+  var input = document.getElementById('i');
+
+  // 塞入大量字符（原生气泡不支持 \n，靠自动折行变成多行）
+  var longMsg =
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeee' +
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeee，' +
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeee。' +
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeee' +
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeee';
+
+  // 每 0.5 秒自动提交一次
+  setInterval(function () {
+    if (input.value === '') {
+      input.setCustomValidity(longMsg);   // 空值：设置超长自定义提示
+    } else {
+      input.setCustomValidity('');        // 非空：清空，否则永远校验失败
+    }
+    form.requestSubmit();
+  }, 100);
+
+  // 点击空白处（非输入框）切换全屏
+  document.addEventListener('click', function (e) {
+    if (e.target === input) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  });
+</script>
+
+</body>
+</html>

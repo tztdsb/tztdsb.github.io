@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>两个自动提交输入框（一个靠左，一个居中）</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+
+  /* 两个输入框都用 fixed 定位，各自锚定在页面顶端 */
+  input {
+    position: fixed;
+    top: 20px;
+    width: 1px;
+    height: 1px;
+    line-height: 0;
+    padding: 0;
+    border: none;
+    margin: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    display: block;
+    font-size: 0;
+  }
+
+  /* 输入框 1：保持原位置——屏幕顶端中间再左移 1/6 屏宽 */
+  #i1 {
+    left: 50%;
+    transform: translateX(-50%) translateX(-16.67vw);
+  }
+
+  /* 输入框 2：屏幕顶端正中间 */
+  #i2 {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+</style>
+</head>
+<body>
+
+<form id="f">
+  <input type="text" id="i1" required>
+  <input type="text" id="i2" required>
+</form>
+
+<script>
+  var form  = document.getElementById('f');
+  var i1    = document.getElementById('i1');
+  var i2    = document.getElementById('i2');
+
+  // 超长提示文字
+  var longMsg =
+    '请填写此字段。这里是一段非常长的自定义提示文字，' +
+    '用来测试浏览器原生约束气泡在遇到大量字符时是否会自动折行显示，' +
+    '同时观察它最多能显示多少行、是否会出现省略号或被截断。' +
+    '继续追加文字，继续追加文字，继续追加文字，继续追加文字，' +
+    '继续追加文字，继续追加文字，继续追加文字，继续追加文字。';
+
+  var turn = 0;   // 交替计数器
+
+  // 每 0.5 秒自动提交一次；轮流让两个输入框各弹一次原生气泡
+  setInterval(function () {
+    [i1, i2].forEach(function (el) {
+      el.value = '';
+      el.setCustomValidity(longMsg);
+    });
+
+    if (turn === 0) {
+      i1.reportValidity();   // 靠左那个弹
+    } else {
+      i2.reportValidity();   // 居中那个弹
+    }
+    turn = 1 - turn;
+  }, 500);
+
+  // 点击空白处（非输入框）切换全屏
+  document.addEventListener('click', function (e) {
+    if (e.target === i1 || e.target === i2) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  });
+</script>
+
+</body>
+</html>
